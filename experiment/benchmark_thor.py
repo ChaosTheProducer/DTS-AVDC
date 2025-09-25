@@ -14,10 +14,6 @@ from tqdm import tqdm
 import cv2
 import wandb
 
-import ssl
-import urllib3
-
-
 random.seed(0)
 np.random.seed(0)
 torch.manual_seed(0)
@@ -145,11 +141,9 @@ scene2targets = {
 }
 
 def eval(scene, target, n_seeds=20, log=False):
-    # Initialize wandb
     wandb.init(
-        project="Draft-and-Target-iTHOR",
+        project="Draft-and-Target-iTHOR",  # Feel free to change the project name
         name=f"{scene}_{target}",
-        #mode = "offline",
         config={
             "scene": scene,
             "target": target,
@@ -230,10 +224,7 @@ def eval(scene, target, n_seeds=20, log=False):
             framess.append(frames)
 
         success_rate = successes / n_seeds
-        avg_episode_length = np.mean(episode_lengths)
         
-        
-        # Record metrics to wandb
         success_table = wandb.Table(columns=["seed", "success", "steps"])
         for i, (success, steps) in enumerate(zip(success_episodes, episode_lengths)):
             success_table.add_data(i, success, steps)

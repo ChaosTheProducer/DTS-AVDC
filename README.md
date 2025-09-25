@@ -67,6 +67,8 @@ DTS-AVDC-114514/
 │       ├── goal_diffusion.py     # Main diffusion with Draft-Target
 ├── metaworld/                    # MetaWorld Benchmark  
 ├── download.sh                  # Checkpoint download script
+├── LICENSE                      # MIT License
+└── README.md                    # Current file
 └── requirements.txt            # Our dependencies
 └── ...                          # Other files
 ```

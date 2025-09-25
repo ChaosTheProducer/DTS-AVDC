@@ -354,11 +354,7 @@ class GoalGaussianDiffusion(nn.Module):
         min_snr_gamma = 5,
         guidance_weight = 2.0,
         var_temp = 1.0,
-        #num_blocks= 10,  # Best for MetaWorld in our experiments
-        #num_blocks = 8
-        num_blocks = 6  # Best For iTHOR in our experiments
-        #num_blocks = 4
-        #num_blocks = 2
+        num_blocks = 6  # We try out 2,4,6,8,10 in our experiments
     ):
         super().__init__()
         # assert not (type(self) == GoalGaussianDiffusion and model.channels != model.out_dim)
@@ -551,7 +547,6 @@ class GoalGaussianDiffusion(nn.Module):
         x_start = None
 
         for t in tqdm(reversed(range(0, self.num_timesteps)), desc = 'sampling loop time step', total = self.num_timesteps):
-            # self_cond = x_start if self.self_condition else None
             img, _ = self.p_sample(img, t, x_cond, task_embed)
             imgs.append(img)
             
@@ -601,10 +596,8 @@ class GoalGaussianDiffusion(nn.Module):
         time_pairs = time_pairs[:num_blocks]
         print("time_pairs:", time_pairs)
         for step_idx, (time_step, time_next) in enumerate(tqdm(time_pairs, desc = 'sampling loop time step')): 
-            # [(99, 89), (89, 79), (79, 69), (69, 59), (59, 49), (49, 39), (39, 29), (29, 19), (19, 9), (9, -1)]
-            
-            time_cond = torch.full((batch,), time_step, device = device, dtype = torch.long) # 99 89 79....9 time_cond: tensor([49], device='cuda:0')
-            t_list.append(time_cond)
+
+            time_cond = torch.full((batch,), time_step, device = device, dtype = torch.long) 
           
             starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
             starter.record()
@@ -637,7 +630,7 @@ class GoalGaussianDiffusion(nn.Module):
             c = (1 - alpha_next - sigma ** 2).sqrt()
 
             noise = torch.randn_like(img) 
-            # img is the predicted x_89, x_start is the predicted x_0 + \ sigma * noise
+
             img = x_start * alpha_next.sqrt() + c * pred_noise + sigma * noise
 
             imgs.append(img)
@@ -650,10 +643,6 @@ class GoalGaussianDiffusion(nn.Module):
         print(f"[DDIM Timer] === DDIM Sample Complete ===")
         print("draft token len:", len(draft_tokens))
 
-        # When sampling 10 steps, draft tokens should be a list containing 11 tensors [img(x99 initial noise), x89, ..., x9, x_start]
-
-        # t_list should be a list of 10 tensors [99, 89, ..., 9], 
-        # ret is the normalized x0 that can be used directly, tokens cannot be used directly
         return ret, draft_tokens, t_list, target_timestep
     
     """
@@ -667,31 +656,23 @@ class GoalGaussianDiffusion(nn.Module):
         print("dddddddrafttoken", len(draft_tokens))
         """The target token corresponding to each position"""
         print("[DEBUG] Running target_sample")
-        time_values = [t.item() for t in t_list]  # Extract time step values
-        # Add -1 as the final time_next
+        time_values = [t.item() for t in t_list]  
+
         time_values_with_end = time_values + [-1]
-        # If the number of steps is less than 10, add the last value of the repetition to time_values_with_end
-        while len(time_values_with_end) < 6:  # Because 10 pairs of time steps require 11 elements
+
+        while len(time_values_with_end) < 6: 
             time_values_with_end.append(time_values_with_end[-1])
         time_values_with_end = time_values_with_end[:6]
         time_pairs = list(zip(time_values_with_end[:-1], time_values_with_end[1:]))
         print(time_pairs)
-        # time_pairs = [(99, 89), (89, 79), ..., (9, -1)]
 
-        #print(f"[DEBUG] Generated time_pairs: {time_pairs}")
-
-        target_tokens = [[token] for token in draft_tokens[:-1]]  # [[img(x99)], [x89], ..., [x9]] len = 10
-                                                                  # 
-        draft_tokens_batchshape = torch.cat(draft_tokens[:-1], dim=0)  # Batch draft_tokens, remove the last x_start [10,21,256,256]
-
-        batch = draft_tokens_batchshape.shape[0]  # batch size
-        x_cond_batch = x_cond.repeat(batch, 1, 1, 1)  # Batch x_cond
+        target_tokens = [[token] for token in draft_tokens[:-1]]  
+        draft_tokens_batchshape = torch.cat(draft_tokens[:-1], dim=0)  
+        batch = draft_tokens_batchshape.shape[0] 
+        x_cond_batch = x_cond.repeat(batch, 1, 1, 1) 
         
-        # t_list: [99, 89, 79, 69, 59, 49, 39, 29, 19, 9]
-        initial_t_values = [t.item() for t in t_list]  # Extract time step values
+        initial_t_values = [t.item() for t in t_list]
         t_batch = torch.tensor(initial_t_values, device=device, dtype=torch.long)
-        
-        #print(f"[DEBUG] Initial t_batch: {t_batch}")
         
         task_batch = task_embed.repeat(batch, 1, 1)
 
@@ -700,12 +681,8 @@ class GoalGaussianDiffusion(nn.Module):
         print("time_values", time_values)
         print(f"[DEBUG] Processing {len(time_values)} positions: {time_values}")
                
-        for round_idx, (time, time_next) in enumerate(tqdm(time_pairs, desc = 'sampling loop time step')): # [(99, 89), (89, 79), (79, 69), (69, 59), (59, 49), (49, 39), (39, 29), (29, 19), (19, 9), (9, -1)]
-            # Should use t_batch instaed of current_t_batch
-            #current_t_batch = torch.full((batch,), time, device=device, dtype=torch.long)       
-            # Key fix: Don't decrement t_batch at the beginning of each round, use the original value instead
-            # First round use: [99,89,79,...,9]
-            draft_tokens_batch = torch.cat([tokens[-1] for tokens in target_tokens], dim=0)  # Take the last token of each group
+        for round_idx, (time, time_next) in enumerate(tqdm(time_pairs, desc = 'sampling loop time step')): 
+            draft_tokens_batch = torch.cat([tokens[-1] for tokens in target_tokens], dim=0) 
             print("token_batch", draft_tokens_batch.shape)
             print("x_cond:", x_cond_batch.shape)
             print("task_batch:", task_batch.shape)
@@ -713,7 +690,6 @@ class GoalGaussianDiffusion(nn.Module):
             
             pred_noise, x_start, *_ = self.model_predictions(draft_tokens_batch, t_batch, x_cond_batch, task_batch, clip_x_start = False, rederive_pred_noise = True)           
 
-            # Validate t_batch values
             if torch.any(t_batch < 0) or torch.any(t_batch >= self.num_timesteps):
                 print(f"Invalid t_batch values: {t_batch}, breaking loop")
                 break
@@ -728,8 +704,6 @@ class GoalGaussianDiffusion(nn.Module):
                     target_tokens[i].append(x_start[i:i+1])
                 break
             else:
-                # Use fixed time_next instead of t_batch-1
-                #time_next_tensor = torch.full((batch,), time_next, device=device, dtype=torch.long)
                 alpha_next = self.alphas_cumprod[t_batch]
                 print("t_batch_next:", t_batch) 
                 
@@ -740,20 +714,16 @@ class GoalGaussianDiffusion(nn.Module):
             c = (1 - alpha_next - sigma ** 2).sqrt()
 
             noise = torch.randn_like(x_start)
-            # img is the predicted x_t-1, x_start is the predicted x_0
             img = x_start * alpha_next.sqrt() + \
                   c * pred_noise + \
                   sigma * noise
-            #print("img_next:", img.shape)
+
             for i in range(batch):
                 target_tokens[i].append(img[i:i+1])
 
-            
-            # print("t_batch AFTER decrement:", t_batch)
-
-        if round_idx == 6:  # Trigger the last step, the last one in each list of targettokens is x_start
+        if round_idx == 6:  
             print("return tokens[-2]")
-            target_tokens = [tokens[-2] for tokens in target_tokens]  # [x89, x79, x69, x59, x49, x39, x29, x19, x9, x0] len = 10
+            target_tokens = [tokens[-2] for tokens in target_tokens]
         else:
             print("return tokens[-1] is actually -2")
             target_tokens = [tokens[-1] for tokens in target_tokens] 
@@ -767,11 +737,11 @@ class GoalGaussianDiffusion(nn.Module):
     @torch.no_grad()
     def speculative_decoding(self, shape, x_cond, text, draft_model, target_timestep=100,  num_blocks = None, return_all_timesteps=False):
         device = self.betas.device
-        img = torch.randn(shape, device=device) #Initialize Gaussian noise
+        img = torch.randn(shape, device=device)
         imgs = []
         good_tokens = [] 
-        current_timestep = target_timestep  # Which time step to start from
-        max_retries = 1  # Prevent infinite loops
+        current_timestep = target_timestep  
+        max_retries = 1
         retry_count = 0
         sim_threshold=12  # Set the similarity threshold for acceptance
         round = 0
@@ -854,10 +824,10 @@ class GoalGaussianDiffusion(nn.Module):
                     
                     # Move to the next time step based on the rejection index
                     if reject_index < len(t_list):
-                        #current_timestep = t_list[reject_index-1].item()
                         current_timestep = t_list[reject_index].item()
                         print(f"[Speculative Loop] Next timestep from t_list[{reject_index-1}]: {current_timestep}")
-                        retry_count = 0  # Reset retry count
+                        retry_count = 0
+
                     else:
                         # if reject_index is out of the range of t_list, it means the sampling has ended
                         current_timestep = 0
@@ -869,21 +839,21 @@ class GoalGaussianDiffusion(nn.Module):
                         break
                 else:  #rej=0
                     if reject_index < len(t_list):
-                        #current_timestep = t_list[-1].item() - 10
                         print(f"[Speculative Loop] Current timestep: {current_timestep}")
 
                     if current_timestep >= 0:
                         good_tokens.append(target_tokens[0]) 
                         print("Continue Draft Sampling")
                         continue
+
                     # no tokens accepted, retry at current timestep
                     print("[Speculative Loop] No tokens accepted in this round, retrying")
                     print("current_timestep: ",current_timestep)
                     retry_count += 1
+
                     if retry_count >= max_retries and current_timestep <= 0:  # Ending condition
                         print(f"[Speculative Loop] Max retries ({max_retries}) reached, ending generation")
                         if good_tokens:
-                            #imgs.append(good_tokens[-1])
                             imgs.append(target_tokens[-1])
                         else:
                             print("target_tokens[-1][-1][-1][-1][-1][-1]")
@@ -901,7 +871,7 @@ class GoalGaussianDiffusion(nn.Module):
         target_tokens, 
         sim_threshold=0  # will be overriden in speculative_decoding
         ):
-        # Compare draft tokens and target tokens based on cosine similarity and L2 distance
+        # Compare draft tokens and target tokens based on L2 distance
         """
         draft_tokens: [x99, x89, ..., x0]  → length = N
         target_tokens: [x98', x88', ..., x0']  → length = N
@@ -917,22 +887,22 @@ class GoalGaussianDiffusion(nn.Module):
             dt = draft_tokens[i + 1]   # draft tokens start from x99
             tt = target_tokens[i]      # target tokens start from x89'
             print(i)
-            # flatten to compute cosine similarity or L2
-            dt_flat = dt.flatten(start_dim=1)   # [B, C*H*W]
+            # flatten to compute cosine similarity and L2
+            dt_flat = dt.flatten(start_dim=1)
             tt_flat = tt.flatten(start_dim=1)
 
-            # cosine similarity: higher is better
-            cos_sim = F.cosine_similarity(dt_flat, tt_flat, dim=1)  # [B]
+            # cosine similarity
+            cos_sim = F.cosine_similarity(dt_flat, tt_flat, dim=1)  
             avg_sim = cos_sim.mean().item()
             print(f"[Step {i}] Cosine Similarity: {avg_sim:.4f}")    
 
             # Compute L2 distance
-            l2_diff = (dt_flat - tt_flat).pow(2).sum(dim=1).sqrt()  # L2 of every sample
-            avg_l2 = l2_diff.mean().item()  # Average L2 across the batch
+            l2_diff = (dt_flat - tt_flat).pow(2).sum(dim=1).sqrt()
+            avg_l2 = l2_diff.mean().item()  
 
             # Compute MSE
-            mse = F.mse_loss(dt_flat, tt_flat, reduction='none')  # [B, C*H*W]
-            mse_per_sample = mse.mean(dim=1)  # MSE of each sample
+            mse = F.mse_loss(dt_flat, tt_flat, reduction='none')  
+            mse_per_sample = mse.mean(dim=1)  
             avg_mse = mse_per_sample.mean().item()
 
             print(f"[Step {i}] L2 Difference: {avg_l2:.4f} | MSE: {avg_mse:.4f}")
@@ -980,8 +950,6 @@ class GoalGaussianDiffusion(nn.Module):
 
             if imgs:
                 return self.unnormalize(imgs[-1])
-            #elif good_tokens:
-                #return good_tokens[-1]
         
         # Standard sampling
         start_time = time_module.time()
@@ -990,13 +958,11 @@ class GoalGaussianDiffusion(nn.Module):
         
         if sample_fn == self.ddim_sample:
             print("SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSStand")
-            # ddim_sample：ddim_sample(img, shape, x_cond, task_embed, target_timestep, return_all_timesteps)
             shape = (batch_size, channels, image_size[0], image_size[1])
             target_timestep = 99
             img = torch.randn(shape).cuda() if torch.cuda.is_available() else torch.randn(shape)
             ret, _, _, _ = sample_fn(img, shape, x_cond, task_embed, target_timestep, return_all_timesteps)   # return final ret
         else:
-            # p_sample_loop：p_sample_loop(shape, x_cond, task_embed, return_all_timesteps)
             ret = sample_fn((batch_size, channels, image_size[0], image_size[1]), x_cond, task_embed, return_all_timesteps = return_all_timesteps)
         end_time = time_module.time()
         elapsed = end_time - start_time

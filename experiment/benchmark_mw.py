@@ -44,7 +44,7 @@ def run(args):
     start_time = time.time()
 
     wandb.init(
-        project="Draft-and-Target-MetaWorld",
+        project="Draft-and-Target-MetaWorld",  # Feel free to change the project name
         name=f"benchmark_{args.env_name}",
         config={
             "env_name": args.env_name,
