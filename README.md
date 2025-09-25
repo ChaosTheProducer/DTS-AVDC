@@ -21,11 +21,10 @@ This codebase is built extensively on the AVDC framework. We are grateful for th
 This repository contains a **complete implementation** with all necessary files integrated from the AVDC framework. You can directly use this repository without additional setup.
 
 ```bash
-# Clone our repository (replace with actual anonymous repository URL)
-git clone <ANONYMOUS_REPOSITORY_URL>
-cd DTS-AVDC
-
-# No additional file copying needed - everything is included!
+# Download our repository
+# Go to https://anonymous.4open.science/r/DTS-AVDC-114514 and click "Download Repository" on the right-top side.
+# Extract the downloaded ZIP file
+cd DTS-AVDC-114514  # Navigate to the extracted folder
 ```
 
 
@@ -56,10 +55,10 @@ bash download.sh ithor
 ```
 
 ## 📁 Expected Repository Structure
-After setup, the `AVDC_experiments` directory should look like:
+After setup, the `DTS-AVDC-114514` directory should look like:
 
 ```
-DTS-AVDC/
+DTS-AVDC-114514/
 ├── ckpts/                          # Pre-trained model checkpoints
 ├── demo/                          # Video demonstrations from simulator
 ├── experiment/                    # Our Draft-Target experiment scripts
@@ -77,6 +76,13 @@ DTS-AVDC/
 **Important**: Make sure you have activated the conda environment:
 ```bash
 conda activate dts_avdc
+```
+
+**Note**: If you encounter issues running bash scripts on Windows/WSL, you may need to convert line endings to LF format:
+```bash
+# Convert line endings if needed (only if scripts fail to run)
+dos2unix experiment/*.sh
+dos2unix download.sh
 ```
 
 Then, navigate to the experiment directory:
@@ -109,3 +115,7 @@ This codebase is modified from the following repositories:
 - [UniMatch](https://github.com/autonomousvision/unimatch)
 - [Imagen-PyTorch](https://github.com/lucidrains/imagen-pytorch)
 - [Guided-Diffusion](https://github.com/openai/guided-diffusion)
+
+## 📜 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
