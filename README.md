@@ -22,9 +22,8 @@ This repository contains a **complete implementation** with all necessary files 
 
 ```bash
 # Download our repository
-# Go to https://anonymous.4open.science/r/DTS-AVDC-114514 and click "Download Repository" on the right-top side.
 # Extract the downloaded ZIP file
-cd DTS-AVDC-114514  # Navigate to the extracted folder
+cd DTS-AVDC  # Navigate to the extracted folder
 ```
 
 
