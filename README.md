@@ -54,10 +54,10 @@ bash download.sh ithor
 ```
 
 ## 📁 Expected Repository Structure
-After setup, the `DTS-AVDC-114514` directory should look like:
+After setup, the `DTS-AVDC` directory should look like:
 
 ```
-DTS-AVDC-114514/
+DTS-AVDC/
 ├── ckpts/                          # Pre-trained model checkpoints
 ├── demo/                          # Video demonstrations from simulator
 ├── experiment/                    # Our Draft-Target experiment scripts
